@@ -13,6 +13,7 @@ public class JpegProcessor : IJpegProcessor
 	public static readonly JpegProcessor Init = new();
 	public const int CompressionQuality = 70;
 	private const int DCTSize = 8;
+	private readonly DCT dct = new DCT(DCTSize);
 
 	public void Compress(string imagePath, string compressedImagePath)
 	{
@@ -32,7 +33,7 @@ public class JpegProcessor : IJpegProcessor
 		resultBmp.Save(uncompressedImagePath, ImageFormat.Bmp);
 	}
 
-	private static CompressedImage Compress(Matrix matrix, int quality = 50)
+	private CompressedImage Compress(Matrix matrix, int quality = 50)
 	{
 		var allQuantizedBytes = new List<byte>();
 
@@ -44,7 +45,7 @@ public class JpegProcessor : IJpegProcessor
 				{
 					var subMatrix = GetSubMatrix(matrix, y, DCTSize, x, DCTSize, selector);
 					ShiftMatrixValues(subMatrix, -128);
-					var channelFreqs = DCT.DCT2D(subMatrix);
+					var channelFreqs = dct.DCT2D(subMatrix);
 					var quantizedFreqs = Quantize(channelFreqs, quality);
 					var quantizedBytes = ZigZagScan(quantizedFreqs);
 					allQuantizedBytes.AddRange(quantizedBytes);
@@ -63,7 +64,7 @@ public class JpegProcessor : IJpegProcessor
 		};
 	}
 
-	private static Matrix Uncompress(CompressedImage image)
+	private Matrix Uncompress(CompressedImage image)
 	{
 		var result = new Matrix(image.Height, image.Width);
 		using (var allQuantizedBytes =
@@ -73,20 +74,19 @@ public class JpegProcessor : IJpegProcessor
 			{
 				for (var x = 0; x < image.Width; x += DCTSize)
 				{
-					var _y = new double[DCTSize, DCTSize];
-					var cb = new double[DCTSize, DCTSize];
-					var cr = new double[DCTSize, DCTSize];
-					foreach (var channel in new[] { _y, cb, cr })
+					var chn = new double[3][,];  // [_y, cb, cr]
+				
+					for (var i = 0; i < chn.Length; i++)
 					{
 						var quantizedBytes = new byte[DCTSize * DCTSize];
 						allQuantizedBytes.ReadAsync(quantizedBytes, 0, quantizedBytes.Length).Wait();
 						var quantizedFreqs = ZigZagUnScan(quantizedBytes);
 						var channelFreqs = DeQuantize(quantizedFreqs, image.Quality);
-						DCT.IDCT2D(channelFreqs, channel);
-						ShiftMatrixValues(channel, 128);
+						chn[i] = dct.IDCT2D(channelFreqs);
+						ShiftMatrixValues(chn[i], 128);
 					}
 
-					SetPixels(result, _y, cb, cr, PixelFormat.YCbCr, y, x);
+					SetPixels(result, chn[0], chn[1], chn[2], PixelFormat.YCbCr, y, x);
 				}
 			}
 		}

@@ -5,65 +5,63 @@ namespace JPEG;
 
 public class DCT
 {
-	public static double[,] DCT2D(double[,] input)
+	private readonly int dctSize;
+	private readonly double[,] transformMatrix;
+	private readonly double[,] transformMatrixT;
+	
+	public DCT(int dctSize)
 	{
-		var height = input.GetLength(0);
-		var width = input.GetLength(1);
-		var coeffs = new double[width, height];
-
-		MathEx.LoopByTwoVariables(
-			0, width,
-			0, height,
-			(u, v) =>
-			{
-				var sum = MathEx
-					.SumByTwoVariables(
-						0, width,
-						0, height,
-						(x, y) => BasisFunction(input[x, y], u, v, x, y, height, width));
-
-				coeffs[u, v] = sum * Beta(height, width) * Alpha(u) * Alpha(v);
-			});
-
-		return coeffs;
-	}
-
-	public static void IDCT2D(double[,] coeffs, double[,] output)
-	{
-		for (var x = 0; x < coeffs.GetLength(1); x++)
+		this.dctSize = dctSize;
+		transformMatrix = new double[dctSize, dctSize];
+		transformMatrixT = new double[dctSize, dctSize];
+		
+		for (int i = 0; i < dctSize; i++)
 		{
-			for (var y = 0; y < coeffs.GetLength(0); y++)
+			for (int j = 0; j < dctSize; j++)
 			{
-				var sum = MathEx
-					.SumByTwoVariables(
-						0, coeffs.GetLength(1),
-						0, coeffs.GetLength(0),
-						(u, v) =>
-							BasisFunction(coeffs[u, v], u, v, x, y, coeffs.GetLength(0), coeffs.GetLength(1)) *
-							Alpha(u) * Alpha(v));
+				double c_i = i == 0 ? 1 / Math.Sqrt(dctSize) : 1 / Math.Sqrt(dctSize / 2d);
 
-				output[x, y] = sum * Beta(coeffs.GetLength(0), coeffs.GetLength(1));
+				transformMatrix[i, j] = c_i * Math.Cos(Math.PI / dctSize * (j + 0.5) * i);
+				transformMatrixT[j, i] = transformMatrix[i, j];
 			}
 		}
 	}
 
-	public static double BasisFunction(double a, double u, double v, double x, double y, int height, int width)
+	private double[,] MultiplyMatrix(double[,] leftMatrix, double[,] rightMatrix)
 	{
-		var b = Math.Cos(((2d * x + 1d) * u * Math.PI) / (2 * width));
-		var c = Math.Cos(((2d * y + 1d) * v * Math.PI) / (2 * height));
+		var semiMatrix = new double[leftMatrix.GetLength(0), rightMatrix.GetLength(0)];
+		
+		for (int i = 0; i < leftMatrix.GetLength(0); i++)
+		{
+			for (int j = 0; j < rightMatrix.GetLength(1); j++)
+			{
+				for (int k = 0; k < leftMatrix.GetLength(0); k++)
+				{
+					semiMatrix[i, j] += leftMatrix[i, k] * rightMatrix[k, j];
+				}
+			}
+		}
 
-		return a * b * c;
+		return semiMatrix;
+	}
+	
+	public double[,] DCT2D(double[,] input)
+	{
+		//var height = input.GetLength(0);
+		//var width = input.GetLength(1);
+
+		var intermediateRes = MultiplyMatrix(transformMatrix, input);
+
+		return MultiplyMatrix(intermediateRes, transformMatrixT);
 	}
 
-	private static double Alpha(int u)
+	public double[,] IDCT2D(double[,] input)
 	{
-		if (u == 0)
-			return 1 / Math.Sqrt(2);
-		return 1;
-	}
+		//var height = input.GetLength(0);
+		//var width = input.GetLength(1);
 
-	private static double Beta(int height, int width)
-	{
-		return 1d / width + 1d / height;
+		var intermediateRes = MultiplyMatrix(transformMatrixT, input);
+
+		return MultiplyMatrix(intermediateRes, transformMatrix);
 	}
 }
