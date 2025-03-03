@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using JPEG.Huffman;
 using JPEG.Images;
 using PixelFormat = JPEG.Images.PixelFormat;
 
