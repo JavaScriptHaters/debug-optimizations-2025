@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace JPEG.Images;
 
-public class Pixel
+public readonly record struct Pixel
 {
 	private readonly PixelFormat format;
 

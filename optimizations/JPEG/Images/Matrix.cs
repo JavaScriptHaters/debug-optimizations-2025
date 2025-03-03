@@ -1,8 +1,9 @@
 ﻿using System.Drawing;
+using System.Drawing.Imaging;
 
 namespace JPEG.Images;
 
-class Matrix
+unsafe class Matrix
 {
 	public readonly Pixel[,] Pixels;
 	public readonly int Height;
@@ -25,41 +26,63 @@ class Matrix
 		var width = bmp.Width - bmp.Width % 8;
 		var matrix = new Matrix(height, width);
 
-		for (var j = 0; j < height; j++)
+		var bd = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, bmp.PixelFormat);
+
+		try
 		{
-			for (var i = 0; i < width; i++)
+			fixed (Pixel* pPixels = &matrix.Pixels[0,0])
 			{
-				var pixel = bmp.GetPixel(i, j);
-				matrix.Pixels[j, i] = new Pixel(pixel.R, pixel.G, pixel.B, PixelFormat.RGB);
+				for (var h = 0; h < height; h++)
+				{
+					var pBmpPixel = (byte*)bd.Scan0 + h * bd.Stride;
+					for (var w = 0; w < width; w++)
+					{
+						var blue = *pBmpPixel++;
+						var green = *pBmpPixel++;
+						var red = *pBmpPixel++;
+						
+						*(pPixels + h * width + w) = new Pixel(red, green, blue, PixelFormat.RGB);
+					}
+				}
+				return matrix;
 			}
 		}
-
-		return matrix;
+		finally { bmp.UnlockBits(bd); }
 	}
 
 	public static explicit operator Bitmap(Matrix matrix)
 	{
-		var bmp = new Bitmap(matrix.Width, matrix.Height);
+		var width = matrix.Width;
+		var height = matrix.Height;
+		
+		var bmp = new Bitmap(matrix.Width, matrix.Height, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+		var bd = bmp.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, bmp.PixelFormat);
 
-		for (var j = 0; j < bmp.Height; j++)
+		try
 		{
-			for (var i = 0; i < bmp.Width; i++)
+			fixed (Pixel* pPixels = &matrix.Pixels[0,0])
 			{
-				var pixel = matrix.Pixels[j, i];
-				bmp.SetPixel(i, j, Color.FromArgb(ToByte(pixel.R), ToByte(pixel.G), ToByte(pixel.B)));
+				for (var h = 0; h < height; h++)
+				{
+					var pBmpPixel = (byte*)bd.Scan0 + h * bd.Stride;
+					for (var w = 0; w < width; w++)
+					{
+						var pixel = *(pPixels + h * width + w);
+						*pBmpPixel = ToByte(pixel.B); pBmpPixel++;
+						*pBmpPixel = ToByte(pixel.G); pBmpPixel++;
+						*pBmpPixel = ToByte(pixel.R); pBmpPixel++;
+					}
+				}
+				return bmp;
 			}
 		}
-
-		return bmp;
+		finally { bmp.UnlockBits(bd); }
 	}
 
-	public static int ToByte(double d)
-	{
-		var val = (int)d;
-		if (val > byte.MaxValue)
-			return byte.MaxValue;
-		if (val < byte.MinValue)
-			return byte.MinValue;
-		return val;
-	}
+	private static byte ToByte(double d) => d switch
+	{ 
+		> byte.MaxValue => byte.MaxValue, 
+		< byte.MinValue => byte.MinValue, 
+		_ => (byte)d
+	};
 }
