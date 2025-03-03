@@ -5,63 +5,57 @@ namespace JPEG;
 
 public class DCT
 {
-	private readonly int dctSize;
-	private readonly double[,] transformMatrix;
-	private readonly double[,] transformMatrixT;
+    private readonly int dctSize;
+    private readonly double[] transformMatrix;
+    private readonly double[] transformMatrixT;
 	
-	public DCT(int dctSize)
-	{
-		this.dctSize = dctSize;
-		transformMatrix = new double[dctSize, dctSize];
-		transformMatrixT = new double[dctSize, dctSize];
+    public DCT(int dctSize)
+    {
+        this.dctSize = dctSize;
+        transformMatrix = new double[dctSize * dctSize];
+        transformMatrixT = new double[dctSize * dctSize];
 		
-		for (int i = 0; i < dctSize; i++)
-		{
-			for (int j = 0; j < dctSize; j++)
-			{
-				double c_i = i == 0 ? 1 / Math.Sqrt(dctSize) : 1 / Math.Sqrt(dctSize / 2d);
+        for (int i = 0; i < dctSize; i++)
+        {
+            for (int j = 0; j < dctSize; j++)
+            {
+                double c_i = i == 0 ? 1 / Math.Sqrt(dctSize) : 1 / Math.Sqrt(dctSize / 2d);
 
-				transformMatrix[i, j] = c_i * Math.Cos(Math.PI / dctSize * (j + 0.5) * i);
-				transformMatrixT[j, i] = transformMatrix[i, j];
-			}
-		}
-	}
+                transformMatrix[i * dctSize + j] = c_i * Math.Cos(Math.PI / dctSize * (j + 0.5) * i);
+                transformMatrixT[j * dctSize + i] = transformMatrix[i * dctSize + j];
+            }
+        }
+    }
 
-	private double[,] MultiplyMatrix(double[,] leftMatrix, double[,] rightMatrix)
-	{
-		var semiMatrix = new double[leftMatrix.GetLength(0), rightMatrix.GetLength(0)];
+    private Span<double> MultiplyMatrix(Span<double> leftMatrix, Span<double> rightMatrix)
+    {
+        var semiMatrix = new double[dctSize * dctSize];
 		
-		for (int i = 0; i < leftMatrix.GetLength(0); i++)
-		{
-			for (int j = 0; j < rightMatrix.GetLength(1); j++)
-			{
-				for (int k = 0; k < leftMatrix.GetLength(0); k++)
-				{
-					semiMatrix[i, j] += leftMatrix[i, k] * rightMatrix[k, j];
-				}
-			}
-		}
+        for (int i = 0; i < dctSize; i++)
+        {
+            for (int j = 0; j < dctSize; j++)
+            {
+                for (int k = 0; k < dctSize; k++)
+                {
+                    semiMatrix[i * dctSize + j] += leftMatrix[i * dctSize + k] * rightMatrix[k * dctSize + j];
+                }
+            }
+        }
 
-		return semiMatrix;
-	}
+        return semiMatrix.AsSpan();
+    }
 	
-	public double[,] DCT2D(double[,] input)
-	{
-		//var height = input.GetLength(0);
-		//var width = input.GetLength(1);
+    public Span<double> DCT2D(Span<double> input)
+    {
+        var intermediateRes = MultiplyMatrix(transformMatrix, input);
 
-		var intermediateRes = MultiplyMatrix(transformMatrix, input);
+        return MultiplyMatrix(intermediateRes, transformMatrixT);
+    }
 
-		return MultiplyMatrix(intermediateRes, transformMatrixT);
-	}
+    public Span<double> IDCT2D(Span<double> input)
+    {
+        var intermediateRes = MultiplyMatrix(transformMatrixT, input);
 
-	public double[,] IDCT2D(double[,] input)
-	{
-		//var height = input.GetLength(0);
-		//var width = input.GetLength(1);
-
-		var intermediateRes = MultiplyMatrix(transformMatrixT, input);
-
-		return MultiplyMatrix(intermediateRes, transformMatrix);
-	}
+        return MultiplyMatrix(intermediateRes, transformMatrix);
+    }
 }
