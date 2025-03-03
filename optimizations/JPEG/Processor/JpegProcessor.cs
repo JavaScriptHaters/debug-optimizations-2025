@@ -74,8 +74,6 @@ public class JpegProcessor : IJpegProcessor
 			{
 				for (var x = 0; x < image.Width; x += DCTSize)
 				{
-					var chn = new double[3][];  // [_y, cb, cr]
-
 					Span<double> _y;
 					Span<double> cb;
 					Span<double> cr;
